@@ -250,6 +250,64 @@
   }
 
   // ─────────────────────────────────────────────
+  // Eyebrows (on scroll): the wake line.
+  // The top border draws left to right; at 75% the divider draws down;
+  // then the number and label rise from a mask.
+  // A border can't be drawn, so a matching line stands in for it and is removed after.
+  // ─────────────────────────────────────────────
+  function eyebrows() {
+    if (!window.ScrollTrigger) return;
+    var lineDur = small ? 0.8 : 1.2;
+    var divDur = small ? 0.4 : 0.5;
+    var textDur = small ? 0.5 : 0.6;
+
+    document.querySelectorAll(".eyebrow_wrap").forEach(function (wrap) {
+      if (!on(wrap)) return;
+      var divider = wrap.querySelector(".eyebrow_divider");
+      var texts = [wrap.querySelector(".eyebrow_number"), wrap.querySelector(".eyebrow_label")].filter(on);
+      var cs = getComputedStyle(wrap);
+      var width = parseFloat(cs.borderTopWidth) || 0;
+
+      // The stand-in line, sitting exactly over the border.
+      var line = null;
+      if (width) {
+        line = document.createElement("div");
+        line.setAttribute("aria-hidden", "true");
+        line.style.cssText = "position:absolute;left:0;right:0;pointer-events:none;top:-" + width + "px;height:" + width + "px;background:" + cs.borderTopColor + ";";
+        if (cs.position === "static") gsap.set(wrap, { position: "relative" });
+        wrap.appendChild(line);
+        gsap.set(wrap, { borderTopColor: "transparent" });
+        gsap.set(line, { scaleX: 0, transformOrigin: "left center" });
+      }
+      if (divider) gsap.set(divider, { scaleY: 0, transformOrigin: "center top" });
+      if (texts.length) gsap.set(texts, { autoAlpha: 0 });
+
+      var finish = function () {
+        if (line) line.remove();
+        gsap.set(wrap, { clearProps: "borderTopColor,position" });
+      };
+
+      // Text is split into masked lines, so the timeline is built once the web fonts are in.
+      fontsReady().then(function () {
+        var tl = gsap.timeline({ paused: true, onComplete: finish });
+        if (line) tl.to(line, { scaleX: 1, duration: lineDur, ease: "power2.inOut" }, 0);
+        var divAt = line ? lineDur * 0.75 : 0;
+        if (divider) tl.to(divider, { scaleY: 1, duration: divDur, ease: "power2.out", clearProps: "transform,transformOrigin" }, divAt);
+        var textAt = divAt + divDur * 0.7;
+        texts.forEach(function (el, i) {
+          tl.add(lineReveal(el, { duration: textDur }), textAt + i * 0.1);
+        });
+        ScrollTrigger.create({
+          trigger: wrap,
+          start: small ? "top 90%" : "top 85%",
+          once: true,
+          onEnter: function () { tl.play(); },
+        });
+      });
+    });
+  }
+
+  // ─────────────────────────────────────────────
   // Init
   // ─────────────────────────────────────────────
   function init() {
@@ -264,6 +322,10 @@
         // Never leave the nav or hero hidden if something goes wrong.
         gsap.set(".nav_component, .hero_card, .hero_card *", { clearProps: "all" });
         console.error("[manta-motion] hero", e);
+      }
+      try { eyebrows(); } catch (e) {
+        gsap.set(".eyebrow_wrap, .eyebrow_wrap *", { clearProps: "all" });
+        console.error("[manta-motion] eyebrows", e);
       }
     }
     markReady();
