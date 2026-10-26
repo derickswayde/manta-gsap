@@ -299,7 +299,7 @@
         });
         ScrollTrigger.create({
           trigger: wrap,
-          start: small ? "top 90%" : "top 85%",
+          start: small ? "top 100%" : "top 95%",
           once: true,
           onEnter: function () { tl.play(); },
         });
