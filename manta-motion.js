@@ -398,6 +398,14 @@
     onScroll(cards[0], tl, reveal.cardStart);
   }
 
+  // Row wipe: list rows uncover left to right, staggered.
+  function rowWipe(rows) {
+    gsap.set(rows, { clipPath: "inset(0 100% 0 0)" });
+    var tl = gsap.timeline({ paused: true });
+    tl.to(rows, { clipPath: "inset(0 0% 0 0)", duration: small ? 0.7 : 0.9, ease: "power2.inOut", stagger: 0.1, clearProps: "clipPath" });
+    onScroll(rows[0], tl);
+  }
+
   // Background panel: uncovers top to bottom as the section arrives.
   function panelWipe(panel, section) {
     gsap.set(panel, { clipPath: "inset(0% 0% 100% 0%)" });
@@ -462,9 +470,20 @@
     section.querySelectorAll(".carousel_wrap").forEach(function (c) { if (on(c)) carouselReveal(c); });
 
     // Images (not background images or images inside cards).
+    // A photo wipes away from the text beside it: one on the left of the page uncovers right to left.
+    // data-motion="wipe-left" / "wipe-right" overrides.
     section.querySelectorAll(".u-image-wrapper").forEach(function (wrap) {
       if (!free(wrap) || wrap.closest(".u-background-slot")) return;
-      imageWipe(wrap, wrap.getAttribute("data-motion") === "wipe-left");
+      var r = wrap.getBoundingClientRect();
+      var onLeft = r.left + r.width / 2 < window.innerWidth * 0.4;
+      var mode = wrap.getAttribute("data-motion");
+      imageWipe(wrap, mode === "wipe-left" || (mode !== "wipe-right" && onLeft));
+    });
+
+    // Accordion rows uncover left to right, one after another (opening and closing stay with Lumos).
+    section.querySelectorAll(".accordion_list").forEach(function (list) {
+      var rows = Array.prototype.filter.call(list.querySelectorAll(":scope > .accordion_item"), on);
+      if (rows.length) rowWipe(rows);
     });
 
     // Cards (Card Icon, Card Feature), grouped by their list.
@@ -479,7 +498,7 @@
   }
 
   // Sections switched on so far (one pass at a time).
-  var SECTIONS = ["#about", "#analysis", "#advantage"];
+  var SECTIONS = ["#about", "#analysis", "#advantage", "#team"];
 
   function sections() {
     if (!window.ScrollTrigger) return;
