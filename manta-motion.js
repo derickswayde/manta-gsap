@@ -125,8 +125,17 @@
     // A page opened with a hash (/#team) lands below the nav once layout settles.
     var initial = findTarget(window.location.hash);
     if (initial) {
+      // Safari jumps to the hash itself after load, so correct on the next frames too.
+      // Native scroll here (not Lenis), because Lenis's stored position is stale until it sees Safari's jump.
+      var land = function () {
+        var top = initial.getBoundingClientRect().top + window.scrollY - navOffset();
+        window.scrollTo(0, Math.max(0, Math.round(top)));
+      };
       window.addEventListener("load", function () {
-        scrollToTarget(initial, true);
+        land();
+        requestAnimationFrame(function () {
+          setTimeout(land, 120);
+        });
       });
     }
   }
