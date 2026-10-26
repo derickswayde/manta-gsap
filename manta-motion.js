@@ -184,6 +184,12 @@
   // Lines rise from behind a mask. The split is undone afterwards so text reflows on resize.
   function lineReveal(el, opts) {
     var split = SplitText.create(el, { type: "lines", mask: "lines", linesClass: "manta-line" });
+    // Each mask is one line tall, so with a tight line-height it would clip ascenders and descenders
+    // until the split is undone. Clip with clip-path instead of overflow, pushed out past the line box,
+    // so the letters stay whole and the layout doesn't move.
+    if (split.masks && split.masks.length) {
+      gsap.set(split.masks, { overflow: "visible", clipPath: "inset(-0.3em -0.2em -0.3em -0.2em)" });
+    }
     gsap.set(el, { autoAlpha: 1 });
     return gsap.from(split.lines, {
       yPercent: 130,
@@ -382,11 +388,13 @@
     var dur = small ? 0.7 : 1.2;
     var stagger = small ? 0.08 : 0.12;
     var imgs = cards.map(function (c) { return c.querySelector(".card_feature_image"); }).filter(Boolean);
-    gsap.set(cards, { clipPath: "inset(30% 0% 0% 0%)", y: small ? 25 : 60, scale: small ? 1 : 0.96 });
+    // The clip reaches 1em past the sides and bottom: trimmed text (Lumos text-box trim) hangs its
+    // descenders just outside the card, and a flush clip would cut them until the wipe ends.
+    gsap.set(cards, { clipPath: "inset(30% -1em -1em -1em)", y: small ? 25 : 60, scale: small ? 1 : 0.96 });
     if (imgs.length) gsap.set(imgs, { scale: 1.15 });
     var tl = gsap.timeline({ paused: true });
     tl.to(cards, {
-      clipPath: "inset(0% 0% 0% 0%)",
+      clipPath: "inset(0% -1em -1em -1em)",
       y: 0,
       scale: 1,
       duration: dur,
@@ -513,6 +521,51 @@
   }
 
   // ─────────────────────────────────────────────
+  // Footer: background settles with the scroll; logo and tagline rise;
+  // copy and button fade up; the big links draw across row by row; the bottom row fades in.
+  // ─────────────────────────────────────────────
+  function footer() {
+    var wrap = document.querySelector(".site-footer_wrap");
+    if (!on(wrap) || !window.ScrollTrigger) return;
+    var q = function (sel) { return Array.prototype.filter.call(wrap.querySelectorAll(sel), on); };
+
+    // Background: scrubbed to the scroll while the footer comes into view.
+    var bg = wrap.querySelector(":scope > .u-image-wrapper img");
+    if (on(bg)) {
+      gsap.fromTo(bg, { scale: 1.1 }, {
+        scale: 1,
+        ease: "none",
+        scrollTrigger: { trigger: wrap, start: "top bottom", end: "bottom bottom", scrub: true },
+      });
+    }
+
+    var logo = q(".site-footer_cta .logo_wrap")[0];
+    var tagline = q(".site-footer_cta > .u-text")[0];
+    var fades = q(".site-footer_cta_text, .site-footer_cta_actions");
+    var links = q(".site-footer_nav_link");
+    var info = q(".site-footer_info");
+
+    if (logo) gsap.set(logo, { autoAlpha: 0, y: small ? 15 : 30 });
+    if (tagline) gsap.set(tagline, { autoAlpha: 0 });
+    gsap.set(fades, { autoAlpha: 0, y: small ? 20 : 40 });
+    if (links.length) gsap.set(links, { clipPath: "inset(0 100% 0 0)" });
+    gsap.set(info, { autoAlpha: 0 });
+
+    fontsReady().then(function () {
+      var tl = gsap.timeline({ paused: true });
+      if (logo) tl.to(logo, { autoAlpha: 1, y: 0, duration: 0.8, ease: "power3.out", clearProps: "transform,opacity,visibility" }, 0);
+      if (tagline) {
+        gsap.set(tagline, { autoAlpha: 1 });
+        tl.add(lineReveal(tagline, { duration: small ? 0.55 : 0.8 }), 0.15);
+      }
+      tl.to(fades, { autoAlpha: 1, y: 0, duration: small ? 0.5 : 1, ease: "circ.out", stagger: 0.1, clearProps: "transform,opacity,visibility" }, 0.35);
+      if (links.length) tl.to(links, { clipPath: "inset(0 0% 0 0)", duration: small ? 0.7 : 0.9, ease: "power2.inOut", stagger: 0.1, clearProps: "clipPath" }, 0.1);
+      tl.to(info, { autoAlpha: 1, duration: 0.8, ease: "power1.out", stagger: 0.08, clearProps: "opacity,visibility" }, 0.6);
+      onScroll(wrap, tl, small ? "top 90%" : "top 80%");
+    });
+  }
+
+  // ─────────────────────────────────────────────
   // Init
   // ─────────────────────────────────────────────
   function init() {
@@ -533,6 +586,10 @@
         console.error("[manta-motion] eyebrows", e);
       }
       sections();
+      try { footer(); } catch (e) {
+        gsap.set(".site-footer_wrap *", { clearProps: "all" });
+        console.error("[manta-motion] footer", e);
+      }
     }
     markReady();
 
