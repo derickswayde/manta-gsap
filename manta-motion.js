@@ -196,11 +196,32 @@
   }
 
   // ─────────────────────────────────────────────
+  // Nav (on load): slides down from above and fades in, with the hero wipe.
+  // Measured from popupshopshop.com (also Lumos): -100%, 1s, a soft quart ease-out.
+  // ─────────────────────────────────────────────
+  function navIn() {
+    var nav = document.querySelector(".nav_component");
+    if (!on(nav)) return null;
+    gsap.set(nav, { yPercent: -100, autoAlpha: 0 });
+    return gsap.to(nav, {
+      yPercent: 0,
+      autoAlpha: 1,
+      duration: small ? 0.8 : 1,
+      ease: "power4.out",
+      paused: true,
+      clearProps: "transform,opacity,visibility",
+    });
+  }
+
+  // ─────────────────────────────────────────────
   // Hero (on load): image wipe, then heading lines, then body
   // ─────────────────────────────────────────────
-  function hero() {
+  function hero(nav) {
     var card = document.querySelector(".hero_card");
-    if (!on(card)) return;
+    if (!on(card)) {
+      if (nav) nav.play();
+      return;
+    }
     var img = card.querySelector(".u-background-slot .u-image");
     var title = card.querySelector(".hero_title");
     var body = card.querySelector(".hero_content > .u-text");
@@ -215,6 +236,7 @@
     var wipe = small ? 0.8 : 1.2;
     imageReady(img, 800).then(function () {
       var tl = gsap.timeline();
+      if (nav) tl.add(nav.play(), 0);
       tl.to(card, { clipPath: "inset(0 0% 0 0" + round + ")", duration: wipe, ease: "power2.inOut", clearProps: "clipPath" }, 0);
       if (img) tl.to(img, { scale: 1, duration: wipe + 0.4, ease: "power2.out", clearProps: "transform" }, 0);
 
@@ -238,9 +260,9 @@
     var canAnimate = !reduceMotion && window.gsap && window.SplitText;
     if (canAnimate) {
       gsap.registerPlugin(SplitText);
-      try { hero(); } catch (e) {
-        // Never leave the hero hidden if something goes wrong.
-        gsap.set(".hero_card, .hero_card *", { clearProps: "all" });
+      try { hero(navIn()); } catch (e) {
+        // Never leave the nav or hero hidden if something goes wrong.
+        gsap.set(".nav_component, .hero_card, .hero_card *", { clearProps: "all" });
         console.error("[manta-motion] hero", e);
       }
     }
