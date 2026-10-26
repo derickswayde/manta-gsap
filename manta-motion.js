@@ -156,6 +156,78 @@
   }
 
   // ─────────────────────────────────────────────
+  // Shared helpers
+  // ─────────────────────────────────────────────
+  var small = window.matchMedia("(max-width: 767px)").matches;
+
+  function on(el) {
+    return el && el.getAttribute("data-motion") !== "off";
+  }
+
+  // Keep the element's own corner radius while it's clipped.
+  function roundOf(el) {
+    var r = getComputedStyle(el).borderTopLeftRadius;
+    return r && r !== "0px" ? " round " + r : "";
+  }
+
+  function fontsReady() {
+    return document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+  }
+
+  // Wait for an image to be ready to paint, but never longer than `max` ms.
+  function imageReady(img, max) {
+    if (!img) return Promise.resolve();
+    var ready = img.decode ? img.decode().catch(function () {}) : Promise.resolve();
+    return Promise.race([ready, new Promise(function (r) { setTimeout(r, max); })]);
+  }
+
+  // Lines rise from behind a mask. The split is undone afterwards so text reflows on resize.
+  function lineReveal(el, opts) {
+    var split = SplitText.create(el, { type: "lines", mask: "lines", linesClass: "manta-line" });
+    gsap.set(el, { autoAlpha: 1 });
+    return gsap.from(split.lines, {
+      yPercent: 130,
+      duration: opts.duration,
+      ease: "power3.out",
+      stagger: 0.12,
+      delay: opts.delay || 0,
+      onComplete: function () { split.revert(); },
+    });
+  }
+
+  // ─────────────────────────────────────────────
+  // Hero (on load): image wipe, then heading lines, then body
+  // ─────────────────────────────────────────────
+  function hero() {
+    var card = document.querySelector(".hero_card");
+    if (!on(card)) return;
+    var img = card.querySelector(".u-background-slot .u-image");
+    var title = card.querySelector(".hero_title");
+    var body = card.querySelector(".hero_content > .u-text");
+    var round = roundOf(card);
+
+    // Starting states, set before the reveal guard lifts.
+    gsap.set(card, { clipPath: "inset(0 100% 0 0" + round + ")" });
+    if (img) gsap.set(img, { scale: 1.1 });
+    if (on(title)) gsap.set(title, { autoAlpha: 0 });
+    if (on(body)) gsap.set(body, { autoAlpha: 0, y: small ? 20 : 50 });
+
+    var wipe = small ? 0.8 : 1.2;
+    imageReady(img, 800).then(function () {
+      var tl = gsap.timeline();
+      tl.to(card, { clipPath: "inset(0 0% 0 0" + round + ")", duration: wipe, ease: "power2.inOut", clearProps: "clipPath" }, 0);
+      if (img) tl.to(img, { scale: 1, duration: wipe + 0.4, ease: "power2.out", clearProps: "transform" }, 0);
+
+      // The heading is split into lines, so it waits for the web fonts; the wipe doesn't.
+      fontsReady().then(function () {
+        var at = Math.max(0.5, tl.time());
+        if (on(title)) tl.add(lineReveal(title, { duration: small ? 0.55 : 0.8 }), at);
+        if (on(body)) tl.to(body, { autoAlpha: 1, y: 0, duration: small ? 0.5 : 1, ease: "circ.out", clearProps: "transform" }, at + 0.3);
+      });
+    });
+  }
+
+  // ─────────────────────────────────────────────
   // Init
   // ─────────────────────────────────────────────
   function init() {
@@ -163,6 +235,15 @@
     startLenis();
     bindAnchors();
     bindMenu();
+    var canAnimate = !reduceMotion && window.gsap && window.SplitText;
+    if (canAnimate) {
+      gsap.registerPlugin(SplitText);
+      try { hero(); } catch (e) {
+        // Never leave the hero hidden if something goes wrong.
+        gsap.set(".hero_card, .hero_card *", { clearProps: "all" });
+        console.error("[manta-motion] hero", e);
+      }
+    }
     markReady();
 
     // Recalculate trigger positions once fonts and images have settled.

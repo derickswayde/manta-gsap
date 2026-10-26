@@ -17,4 +17,8 @@
   /* Reveal guard: elements that animate in are hidden here (selectors added pass by pass).
      If the script hasn't run within 3s, everything shows anyway. */
   @keyframes manta-motion-fallback { to { visibility: visible; } }
+  html.manta-motion:not(.manta-motion-ready) .hero_card {
+    visibility: hidden;
+    animation: manta-motion-fallback 0s 3s forwards;
+  }
 </style>
