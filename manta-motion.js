@@ -345,13 +345,15 @@
 
   // Heading lines rise, then the paragraph(s) that follow it fade up.
   function textBlock(heading, paragraphs) {
-    var target = heading.firstElementChild || heading;
+    // Typography Heading wraps its h-tag in a rich text block; Typography Plain is the h-tag itself.
+    var target = /^H[1-6]$/.test(heading.tagName) ? heading : heading.firstElementChild || heading;
+    var big = parseFloat(getComputedStyle(target).fontSize) >= 60;
     gsap.set(heading, { autoAlpha: 0 });
     paragraphs.forEach(function (p) { gsap.set(p, { autoAlpha: 0, y: small ? 20 : 50 }); });
     fontsReady().then(function () {
       var tl = gsap.timeline({ paused: true });
       gsap.set(heading, { autoAlpha: 1 });
-      tl.add(lineReveal(target, { duration: small ? 0.55 : 0.8 }), 0);
+      tl.add(lineReveal(target, { duration: small ? 0.55 : big ? 1 : 0.8 }), 0);
       tl.set(heading, { clearProps: "opacity,visibility" }, 0.01);
       paragraphs.forEach(function (p, i) {
         tl.to(p, { autoAlpha: 1, y: 0, duration: small ? 0.5 : 1, ease: "circ.out", clearProps: "transform,opacity,visibility" }, 0.15 + i * 0.1);
@@ -375,18 +377,24 @@
   }
 
   // Card wipe (Moco's stagger cards): a curtain lifts from below as the cards rise, one after another.
+  // Card Features also settle their photo from 1.15 to 1 during the curtain, which gives the wipe depth.
   function cardWipe(cards) {
+    var dur = small ? 0.7 : 1.2;
+    var stagger = small ? 0.08 : 0.12;
+    var imgs = cards.map(function (c) { return c.querySelector(".card_feature_image"); }).filter(Boolean);
     gsap.set(cards, { clipPath: "inset(30% 0% 0% 0%)", y: small ? 25 : 60, scale: small ? 1 : 0.96 });
+    if (imgs.length) gsap.set(imgs, { scale: 1.15 });
     var tl = gsap.timeline({ paused: true });
     tl.to(cards, {
       clipPath: "inset(0% 0% 0% 0%)",
       y: 0,
       scale: 1,
-      duration: small ? 0.7 : 1.2,
+      duration: dur,
       ease: "power3.out",
-      stagger: small ? 0.08 : 0.12,
+      stagger: stagger,
       clearProps: "clipPath,transform",
-    });
+    }, 0);
+    if (imgs.length) tl.to(imgs, { scale: 1, duration: dur + 0.3, ease: "power3.out", stagger: stagger, clearProps: "transform" }, 0);
     onScroll(cards[0], tl, reveal.cardStart);
   }
 
@@ -421,6 +429,9 @@
     onScroll(stage, tl);
   }
 
+  // Headings: Typography Heading, and Typography Plain set to a heading tag.
+  var HEADINGS = ".u-heading, h1.u-text, h2.u-text, h3.u-text, h4.u-text";
+
   // Elements inside these are left to their own animation.
   var SKIP = ".hero_card, .eyebrow_wrap, .card_icon_wrap, .card_feature_wrap, .carousel_wrap, .accordion_wrap, footer";
 
@@ -432,8 +443,9 @@
     // Headings and the paragraphs in the same content wrapper.
     // A heading claims the paragraphs in its grid (or its own wrapper), so side-by-side layouts pair up.
     var claimed = new Set();
-    section.querySelectorAll(".u-heading").forEach(function (h) {
-      if (!free(h)) return;
+    var headings = Array.prototype.filter.call(section.querySelectorAll(HEADINGS), free);
+    headings.forEach(function (h) { claimed.add(h); });
+    headings.forEach(function (h) {
       var group = h.closest(".u-grid") || h.parentElement;
       var paras = Array.prototype.filter.call(group.querySelectorAll(".u-text"), function (p) {
         return free(p) && !claimed.has(p);
@@ -455,19 +467,19 @@
       imageWipe(wrap, wrap.getAttribute("data-motion") === "wipe-left");
     });
 
-    // Card Icons, grouped by their list.
+    // Cards (Card Icon, Card Feature), grouped by their list.
     var groups = new Map();
-    section.querySelectorAll(".card_icon_wrap").forEach(function (card) {
+    section.querySelectorAll(".card_icon_wrap, .card_feature_wrap").forEach(function (card) {
       if (!on(card)) return;
       var key = card.parentElement;
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(card);
     });
-    groups.forEach(cardWipe);
+    groups.forEach(function (cards) { cardWipe(cards); });
   }
 
   // Sections switched on so far (one pass at a time).
-  var SECTIONS = ["#about", "#analysis"];
+  var SECTIONS = ["#about", "#analysis", "#advantage"];
 
   function sections() {
     if (!window.ScrollTrigger) return;
