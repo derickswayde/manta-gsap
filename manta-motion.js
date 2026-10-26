@@ -217,37 +217,51 @@
   }
 
   // ─────────────────────────────────────────────
-  // Hero (on load): image wipe, then heading lines, then body
+  // Hero (on load): the first section on the page.
+  // Nav slides in; heading lines rise; paragraph fades up; then the photo wipes in below.
   // ─────────────────────────────────────────────
   function hero(nav) {
-    var card = document.querySelector(".hero_card");
-    if (!on(card)) {
-      if (nav) nav.play();
-      return;
-    }
-    var img = card.querySelector(".u-background-slot .u-image");
-    var title = card.querySelector(".hero_title");
-    var body = card.querySelector(".hero_content > .u-text");
-    var round = roundOf(card);
+    var section = document.querySelector("main > section:first-child");
+    var tl = gsap.timeline();
+    if (nav) tl.add(nav.play(), 0);
+    if (!on(section)) return;
+
+    var heading = section.querySelector(".u-heading");
+    var paras = Array.prototype.filter.call(section.querySelectorAll(".u-text"), on);
+    var media = section.querySelector(".u-image-wrapper");
+    if (!on(heading)) heading = null;
+    if (!on(media)) media = null;
+    var img = media && media.querySelector("img, video");
+    var round = media ? roundOf(media) : "";
 
     // Starting states, set before the reveal guard lifts.
-    gsap.set(card, { clipPath: "inset(0 100% 0 0" + round + ")" });
+    if (heading) gsap.set(heading, { autoAlpha: 0 });
+    paras.forEach(function (p) { gsap.set(p, { autoAlpha: 0, y: small ? 20 : 50 }); });
+    if (media) gsap.set(media, { clipPath: "inset(0 100% 0 0" + round + ")" });
     if (img) gsap.set(img, { scale: 1.1 });
-    if (on(title)) gsap.set(title, { autoAlpha: 0 });
-    if (on(body)) gsap.set(body, { autoAlpha: 0, y: small ? 20 : 50 });
 
-    var wipe = small ? 0.8 : 1.2;
-    imageReady(img, 800).then(function () {
-      var tl = gsap.timeline();
-      if (nav) tl.add(nav.play(), 0);
-      tl.to(card, { clipPath: "inset(0 0% 0 0" + round + ")", duration: wipe, ease: "power2.inOut", clearProps: "clipPath" }, 0);
-      if (img) tl.to(img, { scale: 1, duration: wipe + 0.4, ease: "power2.out", clearProps: "transform" }, 0);
+    // Never schedule into the past if a wait ran long.
+    var at = function (t) { return Math.max(t, tl.time()); };
 
-      // The heading is split into lines, so it waits for the web fonts; the wipe doesn't.
-      fontsReady().then(function () {
-        var at = Math.max(0.5, tl.time());
-        if (on(title)) tl.add(lineReveal(title, { duration: small ? 0.55 : 0.8 }), at);
-        if (on(body)) tl.to(body, { autoAlpha: 1, y: 0, duration: small ? 0.5 : 1, ease: "circ.out", clearProps: "transform,opacity,visibility" }, at + 0.3);
+    // Text is split into lines, so it waits for the web fonts (at most 1.2s);
+    // the photo follows the text and also waits until it can paint (at most 0.8s).
+    var fontsOrTimeout = Promise.race([fontsReady(), new Promise(function (r) { setTimeout(r, 1200); })]);
+    fontsOrTimeout.then(function () {
+      var t = at(0.15);
+      if (heading) {
+        gsap.set(heading, { autoAlpha: 1 });
+        tl.add(lineReveal(heading.firstElementChild || heading, { duration: small ? 0.55 : 0.8 }), t);
+        tl.set(heading, { clearProps: "opacity,visibility" }, t + 0.01);
+      }
+      paras.forEach(function (p, i) {
+        tl.to(p, { autoAlpha: 1, y: 0, duration: small ? 0.5 : 1, ease: "circ.out", clearProps: "transform,opacity,visibility" }, t + 0.3 + i * 0.1);
+      });
+      if (!media) return;
+      var wipe = small ? 0.8 : 1.2;
+      imageReady(img, 800).then(function () {
+        var w = at(t + 0.45);
+        tl.to(media, { clipPath: "inset(0 0% 0 0" + round + ")", duration: wipe, ease: "power2.inOut", clearProps: "clipPath" }, w);
+        if (img) tl.to(img, { scale: 1, duration: wipe + 0.4, ease: "power2.out", clearProps: "transform" }, w);
       });
     });
   }
@@ -437,7 +451,7 @@
       gsap.registerPlugin(SplitText);
       try { hero(navIn()); } catch (e) {
         // Never leave the nav or hero hidden if something goes wrong.
-        gsap.set(".nav_component, .hero_card, .hero_card *", { clearProps: "all" });
+        gsap.set(".nav_component, main > section:first-child, main > section:first-child *", { clearProps: "all" });
         console.error("[manta-motion] hero", e);
       }
       try { eyebrows(); } catch (e) {
