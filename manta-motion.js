@@ -192,7 +192,12 @@
     }
     gsap.set(el, { autoAlpha: 1 });
     return gsap.from(split.lines, {
-      yPercent: 130,
+      // Start fully below the mask, clear of its extra 0.3em: the line's own height plus 0.8em.
+      // (A percentage isn't enough for trimmed text, where the line box is shorter than the letters.)
+      y: function (i, line) {
+        var h = line.parentElement ? line.parentElement.offsetHeight : line.offsetHeight;
+        return h + parseFloat(getComputedStyle(line).fontSize) * 0.8;
+      },
       duration: opts.duration,
       ease: "power3.out",
       stagger: 0.12,
