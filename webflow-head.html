@@ -20,7 +20,9 @@
   html.manta-motion:not(.manta-motion-ready) .nav_component,
   html.manta-motion:not(.manta-motion-ready) main > section:first-child :is(.u-heading, .u-text, .u-image-wrapper),
   html.manta-motion:not(.manta-motion-ready) .eyebrow_wrap,
-  html.manta-motion:not(.manta-motion-ready) #about :is(.u-heading, .u-text, .u-image-wrapper, .card_icon_wrap) {
+  html.manta-motion:not(.manta-motion-ready) #about :is(.u-heading, .u-text, .u-image-wrapper, .card_icon_wrap),
+  html.manta-motion:not(.manta-motion-ready) #analysis :is(.u-heading, .u-text, .carousel_stage),
+  html.manta-motion:not(.manta-motion-ready) #analysis > .u-background-slot > * {
     visibility: hidden;
     animation: manta-motion-fallback 0s 3s forwards;
   }

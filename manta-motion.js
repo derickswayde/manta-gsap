@@ -390,6 +390,37 @@
     onScroll(cards[0], tl, reveal.cardStart);
   }
 
+  // Background panel: uncovers top to bottom as the section arrives.
+  function panelWipe(panel, section) {
+    gsap.set(panel, { clipPath: "inset(0% 0% 100% 0%)" });
+    var tl = gsap.timeline({ paused: true });
+    tl.to(panel, { clipPath: "inset(0% 0% 0% 0%)", duration: small ? 1 : 1.4, ease: "power2.inOut", clearProps: "clipPath" });
+    onScroll(section, tl, "top 100%");
+  }
+
+  // Carousel: the stage background wipes in, then the slide card lifts (curtain from below), then the controls.
+  // No scale on the viewport, so the carousel script's measurements aren't affected.
+  // The slide text keeps its own IX3 reveal.
+  function carouselReveal(wrap) {
+    var stage = wrap.querySelector(".carousel_stage");
+    var bg = wrap.querySelector(".carousel_bg");
+    var viewport = wrap.querySelector(".carousel_viewport");
+    var controls = wrap.querySelector(".carousel_controls");
+    if (!stage) return;
+    var wipe = small ? 0.8 : 1.2;
+    gsap.set(stage, { clipPath: "inset(0 100% 0 0)" });
+    if (bg) gsap.set(bg, { scale: 1.1 });
+    if (viewport) gsap.set(viewport, { clipPath: "inset(30% 0% 0% 0%)", y: small ? 25 : 60 });
+    if (controls) gsap.set(controls, { autoAlpha: 0, y: small ? 10 : 20 });
+
+    var tl = gsap.timeline({ paused: true });
+    tl.to(stage, { clipPath: "inset(0 0% 0 0)", duration: wipe, ease: "power2.inOut", clearProps: "clipPath" }, 0);
+    if (bg) tl.to(bg, { scale: 1, duration: wipe + 0.4, ease: "power2.out", clearProps: "transform" }, 0);
+    if (viewport) tl.to(viewport, { clipPath: "inset(0% 0% 0% 0%)", y: 0, duration: small ? 0.7 : 1.2, ease: "power3.out", clearProps: "clipPath,transform" }, wipe * 0.5);
+    if (controls) tl.to(controls, { autoAlpha: 1, y: 0, duration: 0.6, ease: "power2.out", clearProps: "transform,opacity,visibility" }, wipe * 0.5 + 0.5);
+    onScroll(stage, tl);
+  }
+
   // Elements inside these are left to their own animation.
   var SKIP = ".hero_card, .eyebrow_wrap, .card_icon_wrap, .card_feature_wrap, .carousel_wrap, .accordion_wrap, footer";
 
@@ -399,12 +430,24 @@
 
   function sectionReveal(section) {
     // Headings and the paragraphs in the same content wrapper.
+    // A heading claims the paragraphs in its grid (or its own wrapper), so side-by-side layouts pair up.
+    var claimed = new Set();
     section.querySelectorAll(".u-heading").forEach(function (h) {
       if (!free(h)) return;
-      var group = h.parentElement;
-      var paras = Array.prototype.filter.call(group.querySelectorAll(":scope > .u-text"), free);
+      var group = h.closest(".u-grid") || h.parentElement;
+      var paras = Array.prototype.filter.call(group.querySelectorAll(".u-text"), function (p) {
+        return free(p) && !claimed.has(p);
+      });
+      paras.forEach(function (p) { claimed.add(p); });
       textBlock(h, paras);
     });
+
+    // A plain background panel (Lumos background slot, not an image) uncovers from the top.
+    var panel = section.querySelector(":scope > .u-background-slot > :not(.u-image-wrapper):not(.u-overlay)");
+    if (on(panel)) panelWipe(panel, section);
+
+    // Carousel.
+    section.querySelectorAll(".carousel_wrap").forEach(function (c) { if (on(c)) carouselReveal(c); });
 
     // Images (not background images or images inside cards).
     section.querySelectorAll(".u-image-wrapper").forEach(function (wrap) {
@@ -424,7 +467,7 @@
   }
 
   // Sections switched on so far (one pass at a time).
-  var SECTIONS = ["#about"];
+  var SECTIONS = ["#about", "#analysis"];
 
   function sections() {
     if (!window.ScrollTrigger) return;
