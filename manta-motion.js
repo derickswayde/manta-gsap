@@ -191,7 +191,10 @@
       ease: "power3.out",
       stagger: 0.12,
       delay: opts.delay || 0,
-      onComplete: function () { split.revert(); },
+      onComplete: function () {
+        split.revert();
+        gsap.set(el, { clearProps: "opacity,visibility" });
+      },
     });
   }
 
@@ -244,7 +247,7 @@
       fontsReady().then(function () {
         var at = Math.max(0.5, tl.time());
         if (on(title)) tl.add(lineReveal(title, { duration: small ? 0.55 : 0.8 }), at);
-        if (on(body)) tl.to(body, { autoAlpha: 1, y: 0, duration: small ? 0.5 : 1, ease: "circ.out", clearProps: "transform" }, at + 0.3);
+        if (on(body)) tl.to(body, { autoAlpha: 1, y: 0, duration: small ? 0.5 : 1, ease: "circ.out", clearProps: "transform,opacity,visibility" }, at + 0.3);
       });
     });
   }
@@ -308,6 +311,120 @@
   }
 
   // ─────────────────────────────────────────────
+  // Section reveals (on scroll), shared by every section.
+  // Picked up from the Lumos classes already on the page; data-motion="off" opts out.
+  // ─────────────────────────────────────────────
+  var reveal = {
+    start: small ? "top 95%" : "top 90%",      // headings, text and images
+    cardStart: small ? "top 90%" : "top 85%",  // card groups
+  };
+
+  // Plays a timeline once when `trigger` reaches the start line.
+  function onScroll(trigger, tl, start) {
+    ScrollTrigger.create({
+      trigger: trigger,
+      start: start || reveal.start,
+      once: true,
+      onEnter: function () { tl.play(); },
+    });
+  }
+
+  // Heading lines rise, then the paragraph(s) that follow it fade up.
+  function textBlock(heading, paragraphs) {
+    var target = heading.firstElementChild || heading;
+    gsap.set(heading, { autoAlpha: 0 });
+    paragraphs.forEach(function (p) { gsap.set(p, { autoAlpha: 0, y: small ? 20 : 50 }); });
+    fontsReady().then(function () {
+      var tl = gsap.timeline({ paused: true });
+      gsap.set(heading, { autoAlpha: 1 });
+      tl.add(lineReveal(target, { duration: small ? 0.55 : 0.8 }), 0);
+      tl.set(heading, { clearProps: "opacity,visibility" }, 0.01);
+      paragraphs.forEach(function (p, i) {
+        tl.to(p, { autoAlpha: 1, y: 0, duration: small ? 0.5 : 1, ease: "circ.out", clearProps: "transform,opacity,visibility" }, 0.15 + i * 0.1);
+      });
+      onScroll(heading, tl);
+    });
+  }
+
+  // Image wipe: uncovers left to right (or right to left), the photo settling from 1.1 to 1.
+  function imageWipe(wrap, fromRight) {
+    var img = wrap.querySelector("img, video");
+    var round = roundOf(wrap);
+    var hidden = fromRight ? "inset(0 0 0 100%" + round + ")" : "inset(0 100% 0 0" + round + ")";
+    var dur = small ? 0.8 : 1.2;
+    gsap.set(wrap, { clipPath: hidden });
+    if (img) gsap.set(img, { scale: 1.1 });
+    var tl = gsap.timeline({ paused: true });
+    tl.to(wrap, { clipPath: "inset(0 0% 0 0%" + round + ")", duration: dur, ease: "power2.inOut", clearProps: "clipPath" }, 0);
+    if (img) tl.to(img, { scale: 1, duration: dur + 0.4, ease: "power2.out", clearProps: "transform" }, 0);
+    onScroll(wrap, tl);
+  }
+
+  // Card wipe (Moco's stagger cards): a curtain lifts from below as the cards rise, one after another.
+  function cardWipe(cards) {
+    gsap.set(cards, { clipPath: "inset(30% 0% 0% 0%)", y: small ? 25 : 60, scale: small ? 1 : 0.96 });
+    var tl = gsap.timeline({ paused: true });
+    tl.to(cards, {
+      clipPath: "inset(0% 0% 0% 0%)",
+      y: 0,
+      scale: 1,
+      duration: small ? 0.7 : 1.2,
+      ease: "power3.out",
+      stagger: small ? 0.08 : 0.12,
+      clearProps: "clipPath,transform",
+    });
+    onScroll(cards[0], tl, reveal.cardStart);
+  }
+
+  // Elements inside these are left to their own animation.
+  var SKIP = ".hero_card, .eyebrow_wrap, .card_icon_wrap, .card_feature_wrap, .carousel_wrap, .accordion_wrap, footer";
+
+  function free(el) {
+    return on(el) && !el.closest(SKIP) && !el.closest("[data-motion='off']");
+  }
+
+  function sectionReveal(section) {
+    // Headings and the paragraphs in the same content wrapper.
+    section.querySelectorAll(".u-heading").forEach(function (h) {
+      if (!free(h)) return;
+      var group = h.parentElement;
+      var paras = Array.prototype.filter.call(group.querySelectorAll(":scope > .u-text"), free);
+      textBlock(h, paras);
+    });
+
+    // Images (not background images or images inside cards).
+    section.querySelectorAll(".u-image-wrapper").forEach(function (wrap) {
+      if (!free(wrap) || wrap.closest(".u-background-slot")) return;
+      imageWipe(wrap, wrap.getAttribute("data-motion") === "wipe-left");
+    });
+
+    // Card Icons, grouped by their list.
+    var groups = new Map();
+    section.querySelectorAll(".card_icon_wrap").forEach(function (card) {
+      if (!on(card)) return;
+      var key = card.parentElement;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(card);
+    });
+    groups.forEach(cardWipe);
+  }
+
+  // Sections switched on so far (one pass at a time).
+  var SECTIONS = ["#about"];
+
+  function sections() {
+    if (!window.ScrollTrigger) return;
+    SECTIONS.forEach(function (sel) {
+      var section = document.querySelector(sel);
+      if (!section || !on(section)) return;
+      try { sectionReveal(section); } catch (e) {
+        gsap.set(section.querySelectorAll("*"), { clearProps: "all" });
+        console.error("[manta-motion] " + sel, e);
+      }
+    });
+  }
+
+  // ─────────────────────────────────────────────
   // Init
   // ─────────────────────────────────────────────
   function init() {
@@ -327,6 +444,7 @@
         gsap.set(".eyebrow_wrap, .eyebrow_wrap *", { clearProps: "all" });
         console.error("[manta-motion] eyebrows", e);
       }
+      sections();
     }
     markReady();
 

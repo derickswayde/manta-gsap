@@ -19,7 +19,8 @@
   @keyframes manta-motion-fallback { to { visibility: visible; } }
   html.manta-motion:not(.manta-motion-ready) .nav_component,
   html.manta-motion:not(.manta-motion-ready) .hero_card,
-  html.manta-motion:not(.manta-motion-ready) .eyebrow_wrap {
+  html.manta-motion:not(.manta-motion-ready) .eyebrow_wrap,
+  html.manta-motion:not(.manta-motion-ready) #about :is(.u-heading, .u-text, .u-image-wrapper, .card_icon_wrap) {
     visibility: hidden;
     animation: manta-motion-fallback 0s 3s forwards;
   }
